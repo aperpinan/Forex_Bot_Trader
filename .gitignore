@@ -1,0 +1,13 @@
+# credentials and anything private stay on this PC only
+.env
+*.env
+claves/
+
+# runtime files
+*.log
+*.db
+__pycache__/
+.venv/
+
+# downloaded price data (re-download with backtest/bajar_eurusd.py)
+data/

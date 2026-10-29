@@ -1,0 +1,14 @@
+{
+  "instrument": "EUR/USD",
+  "security_id": "CS.D.EURUSD.CZD.IP",
+  "interval": "FIVE_MIN",
+  "strategy": {
+    "mode": "reversion",
+    "rsi_period": 14,
+    "rsi_level": 30,
+    "take_profit_pips": 30,
+    "stop_loss_pips": 5
+  },
+  "lots": 0.01,
+  "max_open_positions": 1
+}
