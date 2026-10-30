@@ -34,3 +34,13 @@ MT5_LOGIN=...
 MT5_PASSWORD=...
 MT5_SERVER=tastyfx-Demo
 ```
+
+## Running the bot
+- `INICIAR_BOT.bat`: starts `bot.py` in the background (MT5 must be installed; it opens it if closed).
+- `PARAR_BOT.bat`: stops it. Open trades keep their stop-loss and take-profit on tastyfx's server.
+- `STOP.txt` in this folder: the bot keeps running and recording, but opens no new trades.
+- `bot.log`: everything it does. `trades.db`: every trade with how it closed (take-profit, stop-loss, or by you).
+- The bot refuses to run on a real-money account unless `config.json` has `"allow_real_money": true`.
+
+On the MT5 chart its trades are labeled `RSI bot` (magic number 202610). You can drag their stop / target or close
+them by hand: the bot keeps your change and records it. It never touches trades you open yourself.
