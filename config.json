@@ -1,5 +1,4 @@
 {
-  "instrument": "EUR/USD",
   "strategy": {
     "mode": "reversion",
     "rsi_period": 7,
@@ -9,7 +8,12 @@
   },
   "lots": 0.5,
   "max_open_positions": 3,
-  "symbol": "EURUSD.FX",
+  "pairs": {
+    "EURUSD.FX": {},
+    "USDJPY.FX": {},
+    "USDCHF.FX": {"lots": 0.01},
+    "USDMXN.FX": {"lots": 0.01, "take_profit_pips": 300, "stop_loss_pips": 300}
+  },
   "timeframe": "M5",
   "magic": 202610,
   "comment": "RSI bot"

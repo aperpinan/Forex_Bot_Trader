@@ -13,6 +13,13 @@ this Windows PC and the official `MetaTrader5` Python package (`.venv`). tastyfx
   TP 30 / SL 30 pips attached to the order; 0.5 lots (was 0.01 until 2026-10-30); up to 3 trades open
   (`max_open_positions`, was 1), ALWAYS all in the same direction: a signal the other way is skipped (owner's rule);
   magic 202610, comment "RSI bot".
+- PAIRS (since 2026-10-30): `config.json` "pairs" lists EURUSD.FX, USDJPY.FX, USDCHF.FX, USDMXN.FX; top-level strategy /
+  lots / max_open_positions are defaults, each pair can override them. Rule per pair: up to 3 trades, all one direction;
+  different pairs are independent. Pip = 0.01 on JPY, 0.0001 on the others (`pip_de`). tastyfx has no CHF/USD, only USD/CHF.
+- Backtest per pair (`backtest/pares.py`, same rules, 6 months): USD/JPY TP/SL 30 = +1298 pips, positive in all 3 periods
+  (19/36 TP/SL settings were); USD/CHF: no setting positive in all 3 periods (30/30 = -147); USD/MXN loses with every
+  setting (spread ~50-90 pips, tastyfx min stop 150 pips). Owner chose: CHF and MXN trade at 0.01 lots only to collect
+  data; MXN uses TP/SL 300 pips. EUR/USD and USD/JPY at 0.5 lots.
 - Stacking backtest (2026-10-30, 20/80, TP/SL 30): max 1 = +750 pips / 155 trades / dd 189; max 2 = +1456 / 271 / dd 311;
   max 3 = +1499 / 355 / dd 412; max 5 = +1637 / 458 / dd 589, all positive in all 3 periods. Looser levels (25/75,
   30/70) with stacking lose money: to get more trades, stack, don't loosen the levels.

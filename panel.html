@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RSI Bot panel</title>
+<style>
+  :root { --bg:#0f1115; --card:#181b22; --line:#2a2f3a; --text:#e6e8ec; --mute:#8b93a3;
+          --green:#2fbf71; --red:#e5484d; --amber:#f5a524; --blue:#4c8dff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 "Segoe UI", system-ui, sans-serif; }
+  header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; padding:14px 22px;
+           border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); z-index:2; }
+  h1 { font-size:18px; margin:0 12px 0 0; }
+  .pill { padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; border:1px solid var(--line); }
+  .ok { color:var(--green); border-color:#1f5a3a; } .bad { color:var(--red); border-color:#6b2427; }
+  .warn { color:var(--amber); border-color:#6b4c12; } .mute { color:var(--mute); }
+  .spacer { flex:1; }
+  button { background:#232834; color:var(--text); border:1px solid var(--line); border-radius:8px;
+           padding:7px 14px; font:inherit; cursor:pointer; }
+  button:hover { border-color:#4a5263; } button:disabled { opacity:.45; cursor:default; }
+  button.primary { background:var(--blue); border-color:var(--blue); color:#fff; }
+  button.danger { background:#3a1517; border-color:#6b2427; color:#ffb4b6; }
+  main { display:grid; grid-template-columns:repeat(auto-fit, minmax(330px, 1fr)); gap:16px; padding:18px 22px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; }
+  .wide { grid-column:1 / -1; }
+  .card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--mute); margin:0 0 12px; }
+  .big { font-size:26px; font-weight:600; }
+  .row { display:flex; justify-content:space-between; gap:10px; padding:3px 0; }
+  .row span:first-child { color:var(--mute); }
+  .pos { color:var(--green); } .neg { color:var(--red); }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { color:var(--mute); font-weight:500; font-size:12px; }
+  .scroll { max-height:340px; overflow:auto; }
+  form.settings { display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; }
+  label { display:flex; flex-direction:column; gap:4px; color:var(--mute); font-size:12px; }
+  input { background:#0f1115; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:7px 9px; font:inherit; }
+  .log { font:12px/1.5 Consolas, monospace; white-space:pre-wrap; color:#c9ceda; }
+  .note { color:var(--mute); font-size:12px; margin-top:10px; }
+  svg { width:100%; display:block; }
+  #toast { position:fixed; right:20px; bottom:20px; background:#232834; border:1px solid var(--line);
+           padding:10px 16px; border-radius:8px; display:none; max-width:420px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>RSI Bot</h1>
+  <span id="pBot" class="pill">…</span>
+  <span id="pPause" class="pill">…</span>
+  <span id="pAcct" class="pill">…</span>
+  <span id="pAlgo" class="pill">…</span>
+  <span class="spacer"></span>
+  <button id="bPause">Pause new trades</button>
+  <button id="bStart">Start bot</button>
+  <button id="bRestart">Restart bot</button>
+  <button id="bStop" class="danger">Stop bot</button>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Account</h2>
+    <div class="big" id="equity">–</div>
+    <div class="row"><span>Balance</span><span id="balance">–</span></div>
+    <div class="row"><span>Account</span><span id="login">–</span></div>
+    <div class="row"><span>Bot last seen</span><span id="alive">–</span></div>
+  </section>
+
+  <section class="card">
+    <h2>Open trades</h2>
+    <div class="scroll" id="open"><span class="mute">No open trades.</span></div>
+  </section>
+
+  <section class="card wide">
+    <h2>Pairs (RSI of the last closed 5-min candle)</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Pair</th><th>Bid / ask</th><th>Spread</th><th>RSI</th><th>RSI last 6 h</th><th>Open</th>
+          <th>Lots</th><th>TP / SL pips</th><th>$ at SL</th></tr></thead>
+        <tbody id="pairs"></tbody>
+      </table>
+    </div>
+    <div class="note">Buy when RSI comes back up through the low (green) line, sell when it comes back down through the
+      high (red) line. Each pair: up to its max of trades, all in the same direction; pairs are independent.</div>
+  </section>
+
+  <section class="card">
+    <h2>Results (closed trades)</h2>
+    <div class="big" id="profit">–</div>
+    <div class="row"><span>Trades</span><span id="nTrades">–</span></div>
+    <div class="row"><span>Won</span><span id="won">–</span></div>
+    <div class="row"><span>Pips</span><span id="pips">–</span></div>
+    <svg id="curve" viewBox="0 0 300 90" preserveAspectRatio="none" height="90"></svg>
+  </section>
+
+  <section class="card">
+    <h2>Settings</h2>
+    <form class="settings" id="fSettings">
+      <label>Lot size (EUR/USD: 0.01 = $0.10/pip)<input name="lots" type="number" step="0.01" min="0.01" max="10"></label>
+      <label>Max open trades<input name="max_open_positions" type="number" step="1" min="1" max="5"></label>
+      <label>RSI period<input name="rsi_period" type="number" step="1" min="2" max="50"></label>
+      <label>RSI low level (high = 100 − low)<input name="rsi_level" type="number" step="1" min="5" max="45"></label>
+      <label>Take-profit (pips)<input name="take_profit_pips" type="number" step="1" min="2" max="500"></label>
+      <label>Stop-loss (pips)<input name="stop_loss_pips" type="number" step="1" min="2" max="500"></label>
+    </form>
+    <div style="display:flex; gap:10px; margin-top:12px">
+      <button class="primary" id="bSave">Save and restart bot</button>
+      <button id="bReset">Undo edits</button>
+    </div>
+    <div class="note" id="riskNote"></div>
+    <div class="note">These are the defaults for every pair. <span id="overrides"></span>
+      The backtest picked RSI 7, level 20, TP 30 / SL 30. Open trades keep their own stop / target.</div>
+  </section>
+
+  <section class="card">
+    <h2>Bot events</h2>
+    <div class="scroll log" id="events"></div>
+  </section>
+
+  <section class="card wide">
+    <h2>Trade history</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Ticket</th><th>Pair</th><th>Side</th><th>Lots</th><th>Opened</th><th>Open</th><th>Closed</th>
+          <th>Close</th><th>How</th><th>Pips</th><th>$</th></tr></thead>
+        <tbody id="hist"><tr><td colspan="11" class="mute">No closed trades yet.</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card wide">
+    <h2>bot.log (newest first)</h2>
+    <div class="scroll log" id="log"></div>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script>
+const TOKEN = "__TOKEN__";
+const $ = id => document.getElementById(id);
+let S = null, editing = false;
+
+const money = v => (v < 0 ? "−$" : "$") + Math.abs(v).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+const signed = (v, d=1) => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toFixed(d);
+const cls = v => v > 0 ? "pos" : v < 0 ? "neg" : "";
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function toast(msg, ms=3500) { const t = $("toast"); t.textContent = msg; t.style.display = "block";
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = "none", ms); }
+
+async function post(path, body) {
+  const r = await fetch(path, {method:"POST", headers:{"Content-Type":"application/json", "X-Token":TOKEN},
+                               body:JSON.stringify(body)});
+  if (r.status === 401) { location.reload(); throw new Error("log in again"); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+function pill(el, text, kind) { el.textContent = text; el.className = "pill " + kind; }
+
+function line(svg, vals, w, h, lo, hi, color, guides=[]) {
+  if (!vals.length) { svg.innerHTML = ""; return; }
+  const y = v => h - 4 - (v - lo) / (hi - lo || 1) * (h - 8);
+  const x = i => vals.length === 1 ? w / 2 : i / (vals.length - 1) * w;
+  let g = guides.map(([v, c]) => `<line x1="0" x2="${w}" y1="${y(v)}" y2="${y(v)}" stroke="${c}" stroke-dasharray="4 4" stroke-width="1"/>`).join("");
+  const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  svg.innerHTML = g + `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+}
+
+function fillSettings(c) {
+  for (const el of $("fSettings").elements) if (el.name in c) el.value = c[el.name];
+  editing = false; riskNote();
+}
+function riskNote() {
+  const f = $("fSettings").elements, lots = +f.lots.value, sl = +f.stop_loss_pips.value, tp = +f.take_profit_pips.value;
+  $("riskNote").textContent = lots ? `EUR/USD at ${lots} lots: about $${(lots*10).toFixed(2)} per pip, ` +
+    `−$${(lots*10*sl).toFixed(0)} at the stop-loss, +$${(lots*10*tp).toFixed(0)} at the take-profit.` : "";
+}
+
+function render(s) {
+  S = s;
+  pill($("pBot"), s.bot_running ? "Bot running" : "Bot stopped", s.bot_running ? "ok" : "bad");
+  pill($("pPause"), s.paused ? "Paused: no new trades" : "Taking new trades", s.paused ? "warn" : "ok");
+  pill($("pAcct"), s.account.demo ? "DEMO account" : "REAL MONEY", s.account.demo ? "mute" : "bad");
+  pill($("pAlgo"), s.algo_trading ? "Algo Trading on" : "Algo Trading OFF in MT5", s.algo_trading ? "ok" : "bad");
+  $("bPause").textContent = s.paused ? "Resume new trades" : "Pause new trades";
+  $("bStart").disabled = s.bot_running; $("bStop").disabled = !s.bot_running; $("bRestart").disabled = !s.bot_running;
+
+  const a = s.account;
+  $("equity").textContent = money(a.equity);
+  $("balance").textContent = money(a.balance);
+  $("login").textContent = `${a.login} · ${a.server}`;
+  $("alive").textContent = s.last_alive || "–";
+
+  $("open").innerHTML = s.open.length ? s.open.map(p => `
+    <div class="big ${cls(p.profit)}">${esc(p.symbol.split(".")[0])} · ${signed(p.pips)} pips · ${money(p.profit)}</div>
+    <div class="row"><span>Ticket</span><span>#${p.ticket}</span></div>
+    <div class="row"><span>Side</span><span>${p.side.toUpperCase()} ${p.lots} lots</span></div>
+    <div class="row"><span>Opened</span><span>${p.open_time} at ${p.open_price.toFixed(p.digits)}</span></div>
+    <div class="row"><span>Now</span><span>${p.now.toFixed(p.digits)}</span></div>
+    <div class="row"><span>Stop-loss / take-profit</span><span>${p.sl.toFixed(p.digits)} / ${p.tp.toFixed(p.digits)}</span></div>
+    <button class="danger" style="margin-top:10px" onclick="closeTrade(${p.ticket})">Close this trade now</button>
+  `).join("<hr style='border-color:#2a2f3a'>") : `<span class="mute">No open trades. They open on the next RSI signals.</span>`;
+
+  $("pairs").innerHTML = s.pairs.map((q, i) => `<tr>
+    <td><b>${esc(q.name)}</b></td>
+    <td>${q.bid == null ? "–" : q.bid.toFixed(q.digits) + " / " + q.ask.toFixed(q.digits)}</td>
+    <td>${q.spread ?? "–"}</td>
+    <td class="${q.rsi != null && q.rsi < q.low ? "pos" : q.rsi != null && q.rsi > q.high ? "neg" : ""}">${q.rsi == null ? "–" : q.rsi.toFixed(1)}</td>
+    <td style="width:160px"><svg id="spark${i}" viewBox="0 0 160 34" preserveAspectRatio="none" height="34"></svg></td>
+    <td>${q.open ? `${q.open} ${q.direction}` : "–"} <span class="mute">/ ${q.max}</span></td>
+    <td>${q.lots}</td><td>${q.tp} / ${q.sl}</td>
+    <td>${q.usd_per_pip_lot == null ? "–" : "−$" + (q.usd_per_pip_lot * q.lots * q.sl).toFixed(0)}</td></tr>`).join("");
+  s.pairs.forEach((q, i) => line($("spark" + i), q.history, 160, 34, 0, 100, "#4c8dff",
+    [[q.low, "#2fbf71"], [q.high, "#e5484d"]]));
+
+  const st = s.stats;
+  $("profit").textContent = money(st.profit); $("profit").className = "big " + cls(st.profit);
+  $("nTrades").textContent = st.trades;
+  $("won").textContent = st.trades ? `${st.won} (${Math.round(st.won / st.trades * 100)}%)` : "–";
+  $("pips").textContent = signed(st.pips);
+  const c = [0, ...s.curve];
+  line($("curve"), c, 300, 90, Math.min(...c), Math.max(...c), "#2fbf71", [[0, "#2a2f3a"]]);
+
+  if (!editing) fillSettings(s.config);
+  const ov = Object.entries(s.config.overrides || {});
+  $("overrides").textContent = ov.length ? "Own settings in config.json: " +
+    ov.map(([k, v]) => k.split(".")[0] + " " + Object.entries(v).map(([a, b]) => `${a} ${b}`).join(", ")).join("; ") + "." : "";
+
+  $("hist").innerHTML = s.closed.length ? s.closed.map(t => `<tr>
+    <td>#${t.ticket}</td><td>${esc((t.symbol || "").split(".")[0])}</td><td>${t.side}</td><td>${t.lots}</td><td>${esc(t.open_time)}</td>
+    <td>${(+t.open_price).toFixed(t.digits)}</td><td>${esc(t.close_time)}</td><td>${(+t.close_price).toFixed(t.digits)}</td><td>${esc(t.close_reason)}</td>
+    <td class="${cls(t.pips)}">${signed(t.pips ?? 0)}</td><td class="${cls(t.profit)}">${money(t.profit ?? 0)}</td></tr>`).join("")
+    : `<tr><td colspan="11" class="mute">No closed trades yet.</td></tr>`;
+
+  $("events").textContent = s.events.join("\n");
+  $("log").textContent = s.log.join("\n");
+}
+
+async function refresh() {
+  try {
+    const r = await fetch("/api/status", {cache:"no-store"});
+    if (r.status === 401) return location.reload();
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error);
+    render(j);
+  } catch (e) { pill($("pBot"), "Panel can't reach MT5: " + e.message, "bad"); }
+}
+
+async function act(fn, okMsg) {
+  try { const j = await fn(); if (okMsg) toast(typeof okMsg === "function" ? okMsg(j) : okMsg); }
+  catch (e) { toast("Error: " + e.message, 6000); }
+  setTimeout(refresh, 1500); setTimeout(refresh, 5000);
+}
+
+$("bPause").onclick = () => act(() => post("/api/pause", {on: !S.paused}), S && S.paused ? "Resumed" : "Paused");
+$("bStart").onclick = () => act(() => post("/api/bot", {action:"start"}), "Starting the bot…");
+$("bRestart").onclick = () => act(() => post("/api/bot", {action:"restart"}), "Restarting the bot…");
+$("bStop").onclick = () => confirm("Stop the bot? Open trades keep their stop-loss / take-profit on tastyfx's server.")
+  && act(() => post("/api/bot", {action:"stop"}), "Bot stopped");
+
+window.closeTrade = t => confirm(`Close trade #${t} now at market price?`)
+  && act(() => post("/api/close", {ticket:t}), `Trade #${t} closed`);
+
+$("fSettings").addEventListener("input", () => { editing = true; riskNote(); });
+$("bReset").onclick = () => S && fillSettings(S.config);
+$("bSave").onclick = () => {
+  const body = {};
+  for (const el of $("fSettings").elements) if (el.name) body[el.name] = +el.value;
+  if (!confirm("Save these settings and restart the bot so it uses them?")) return;
+  act(async () => {
+    const j = await post("/api/settings", body);
+    editing = false;
+    if (S && S.bot_running && j.changes.length) await post("/api/bot", {action:"restart"});
+    return j;
+  }, j => j.changes.length ? "Saved: " + j.changes.join(", ") : "Nothing changed");
+};
+
+refresh(); setInterval(refresh, 3000);
+</script>
+</body>
+</html>
