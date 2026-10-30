@@ -167,6 +167,11 @@ async function post(path, body) {
   return j;
 }
 
+// buy = green up arrow, sell = red down arrow
+const lado = side => side === "buy"
+  ? `<span class="pos" style="font-weight:700"><span style="font-size:18px">▲</span> BUY</span>`
+  : `<span class="neg" style="font-weight:700"><span style="font-size:18px">▼</span> SELL</span>`;
+
 function pill(el, text, kind) { el.textContent = text; el.className = "pill " + kind; }
 
 function line(svg, vals, w, h, lo, hi, color, guides=[]) {
@@ -234,7 +239,7 @@ function render(s) {
   $("alive").textContent = s.last_alive || "–";
 
   $("open").innerHTML = s.open.length ? s.open.map(p => `<tr>
-    <td><b>${esc(p.symbol.split(".")[0])}</b></td><td>#${p.ticket}</td><td>${p.side.toUpperCase()}</td><td>${p.lots}</td>
+    <td><b>${esc(p.symbol.split(".")[0])}</b></td><td>#${p.ticket}</td><td>${lado(p.side)}</td><td>${p.lots}</td>
     <td>${esc(p.open_time)}</td><td>${p.open_price.toFixed(p.digits)}</td><td>${p.now.toFixed(p.digits)}</td>
     <td>${p.sl.toFixed(p.digits)}</td><td>${p.tp.toFixed(p.digits)}</td>
     <td class="${cls(p.pips)}">${signed(p.pips)}</td><td class="${cls(p.profit)}"><b>${money(p.profit)}</b></td>
@@ -249,7 +254,7 @@ function render(s) {
     <td>${q.spread ?? "–"}</td>
     <td class="${q.rsi != null && q.rsi < q.low ? "pos" : q.rsi != null && q.rsi > q.high ? "neg" : ""}">${q.rsi == null ? "–" : q.rsi.toFixed(1)} <span class="mute">(${q.low}/${q.high})</span></td>
     <td style="width:160px"><svg id="spark${i}" viewBox="0 0 160 34" preserveAspectRatio="none" height="34"></svg></td>
-    <td>${q.open ? `${q.open} ${q.direction}` : "–"} <span class="mute">/ ${q.max}</span></td>
+    <td>${q.open ? `${q.open} ${lado(q.direction)}` : "–"} <span class="mute">/ ${q.max}</span></td>
     <td>${q.lots}</td><td>${q.tp} / ${q.sl}</td>
     <td>${q.usd_per_pip_lot == null ? "–" : "−$" + (q.usd_per_pip_lot * q.lots * q.sl).toFixed(0)}</td></tr>`).join("");
   s.pairs.forEach((q, i) => line($("spark" + i), q.history, 160, 34, 0, 100, "#4c8dff",
@@ -273,7 +278,7 @@ function render(s) {
   ownNote();
 
   $("hist").innerHTML = s.closed.length ? s.closed.map(t => `<tr>
-    <td>#${t.ticket}</td><td>${esc((t.symbol || "").split(".")[0])}</td><td>${t.side}</td><td>${t.lots}</td><td>${esc(t.open_time)}</td>
+    <td>#${t.ticket}</td><td>${esc((t.symbol || "").split(".")[0])}</td><td>${lado(t.side)}</td><td>${t.lots}</td><td>${esc(t.open_time)}</td>
     <td>${(+t.open_price).toFixed(t.digits)}</td><td>${esc(t.close_time)}</td><td>${(+t.close_price).toFixed(t.digits)}</td><td>${esc(t.close_reason)}</td>
     <td class="${cls(t.pips)}">${signed(t.pips ?? 0)}</td><td class="${cls(t.profit)}">${money(t.profit ?? 0)}</td></tr>`).join("")
     : `<tr><td colspan="11" class="mute">No closed trades yet.</td></tr>`;
