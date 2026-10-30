@@ -6,6 +6,8 @@ Each pair has up to max_open_positions trades at once, always all in the same di
 that pair is skipped. Different pairs are independent (EUR/USD can be buying while USD/JPY is selling).
 When one trade of a pair hits its take-profit, the pair's other trades are closed with it if together they are
 above zero (config close_group_on_tp, off: it lowered profit in the backtest, backtest/grupo.py).
+tastyfx itself gives every open trade of a pair the SL / TP of the newest one (US FIFO rule), so a pair's
+trades always close together.
 Only its own trades (magic number) are touched. It never moves a stop or target after opening: if you drag them on
 the chart or close the trade by hand, it keeps your change and writes it down.
 
@@ -175,8 +177,14 @@ class Bot:
                     self.db.commit()
                 if (abs(p.sl - sl) > 1e-6 or abs(p.tp - tp) > 1e-6):
                     d = self.mt5.symbol_info(sym).digits
-                    nota = f"you moved SL {sl:.{d}f}->{p.sl:.{d}f}, TP {tp:.{d}f}->{p.tp:.{d}f}"
-                    log(f"#{ticket} {sym} {nota} (the bot keeps your levels)")
+                    # tastyfx (US FIFO rule) gives every trade of a pair the SL / TP of the newest one
+                    nueva = max((x for x in vivas.values() if x.symbol == sym), key=lambda x: x.time_msc)
+                    if nueva.ticket != ticket and abs(nueva.sl - p.sl) < 1e-6 and abs(nueva.tp - p.tp) < 1e-6:
+                        quien, cola = f"tastyfx matched it to the newest trade #{nueva.ticket}:", "(US rule: one SL / TP per pair)"
+                    else:
+                        quien, cola = "you moved", "(the bot keeps your levels)"
+                    nota = f"{quien} SL {sl:.{d}f}->{p.sl:.{d}f}, TP {tp:.{d}f}->{p.tp:.{d}f}"
+                    log(f"#{ticket} {sym} {nota} {cola}")
                     self.db.execute("UPDATE trades SET sl=?, tp=?, note=? WHERE ticket=?",
                                     (p.sl, p.tp, ((note + "; ") if note else "") + nota, ticket))
                     self.db.commit()

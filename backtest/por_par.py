@@ -1,5 +1,7 @@
 """Pick each pair's own RSI level, take-profit and stop-loss.
 
+tastyfx moves every open trade of a pair to the newest trade's SL / TP (US FIFO rule): simulated here.
+
 Every trade pays that pair's real tastyfx spread, so pairs with a wider spread end up needing wider targets.
 To avoid picking luck out of many combinations, a setting only qualifies if:
   - it makes money in each of the three 2-month periods, and
@@ -41,27 +43,34 @@ def rsi(c, n):
 
 
 def correr(bars, R, pip, level, tp, sl, desde, hasta):
-    def salida(i, s):
-        e = bars[i + 1][1]
-        obj, stop = e + s * tp * pip, e - s * sl * pip
-        for j in range(i + 1, hasta):
-            _, o, h, l, c, _ = bars[j]
-            if (l <= stop) if s > 0 else (h >= stop):
-                return j, -sl
-            if (h >= obj) if s > 0 else (l <= obj):
-                return j, tp
-        return hasta - 1, s * (bars[hasta - 1][4] - e) / pip
-
-    abiertas, res = [], []
+    """tastyfx (US FIFO rule) gives every open trade of a pair the SL / TP of the NEWEST trade, so the stack
+    exits together at the levels of the last entry."""
+    abiertas, res = [], []          # entries (price, cost) of the open stack, all one side
+    lado = 0
+    stop = obj = None
     for i in range(max(desde, N_RSI + 2), hasta - 1):
-        abiertas = [t for t in abiertas if t[0] > i]
+        if abiertas:
+            _, o, h, l, c, _ = bars[i]
+            salida = None
+            if (l <= stop) if lado > 0 else (h >= stop):
+                salida = stop
+            elif (h >= obj) if lado > 0 else (l <= obj):
+                salida = obj
+            if salida is not None:
+                for e, coste in abiertas:
+                    res.append(lado * (salida - e) / pip - coste)
+                abiertas = []
+                continue            # a new trade can start from the next candle
         p, q = R[i - 1], R[i]
         s = 1 if p < level <= q else (-1 if p > 100 - level >= q else 0)
-        if not s or len(abiertas) >= MAXPOS or any(t[1] != s for t in abiertas):
+        if not s or len(abiertas) >= MAXPOS or (abiertas and s != lado):
             continue
-        j, pips = salida(i, s)
-        res.append(pips - bars[i + 1][5] / 10.0)
-        abiertas.append((j + 1, s))
+        e = bars[i + 1][1]
+        abiertas.append((e, bars[i + 1][5] / 10.0))
+        lado = s
+        obj, stop = e + s * tp * pip, e - s * sl * pip
+    for e, coste in abiertas:
+        res.append(lado * (bars[hasta - 1][4] - e) / pip - coste)
     return res
 
 

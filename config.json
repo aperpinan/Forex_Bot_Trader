@@ -10,14 +10,35 @@
   "max_open_positions": 3,
   "close_group_on_tp": false,
   "pairs": {
-    "EURUSD.FX": {"rsi_level": 30, "take_profit_pips": 15, "stop_loss_pips": 40},
-    "USDJPY.FX": {"rsi_level": 30, "take_profit_pips": 20, "stop_loss_pips": 70},
-    "USDCHF.FX": {"rsi_level": 25, "take_profit_pips": 20, "stop_loss_pips": 70},
-    "GBPUSD.FX": {"rsi_level": 30, "take_profit_pips": 10, "stop_loss_pips": 70},
-    "AUDUSD.FX": {"rsi_level": 20, "take_profit_pips": 15, "stop_loss_pips": 50},
+    "EURUSD.FX": {
+      "rsi_level": 25,
+      "take_profit_pips": 25,
+      "stop_loss_pips": 25
+    },
+    "USDJPY.FX": {
+      "rsi_level": 25
+    },
+    "USDCHF.FX": {
+      "rsi_level": 30,
+      "take_profit_pips": 50,
+      "stop_loss_pips": 50
+    },
+    "GBPUSD.FX": {
+      "rsi_level": 30,
+      "take_profit_pips": 25,
+      "stop_loss_pips": 40
+    },
+    "AUDUSD.FX": {
+      "rsi_level": 25,
+      "take_profit_pips": 20,
+      "stop_loss_pips": 70
+    },
     "USDCAD.FX": {},
     "NZDUSD.FX": {},
-    "USDMXN.FX": {"take_profit_pips": 300, "stop_loss_pips": 300}
+    "USDMXN.FX": {
+      "take_profit_pips": 300,
+      "stop_loss_pips": 300
+    }
   },
   "timeframe": "M5",
   "magic": 202610,
