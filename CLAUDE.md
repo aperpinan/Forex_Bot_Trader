@@ -10,7 +10,15 @@ this Windows PC and the official `MetaTrader5` Python package (`.venv`). tastyfx
 - Terminal: `C:\Program Files\tastyfx MetaTrader 5\terminal64.exe`. Demo account on server tastyfx-DEMO
   (login in `.env`, never committed). Symbol `EURUSD.FX`: min 0.01 lot, FOK filling, ~0.8 pip spread, stops >= 2 pips.
 - Strategy (`config.json`): RSI(7) mean reversion: buy when RSI comes back up through 20, sell back down through 80;
-  TP 30 / SL 30 pips attached to the order; 0.01 lots; one trade at a time; magic 202610, comment "RSI bot".
+  TP 30 / SL 30 pips attached to the order; 0.5 lots (was 0.01 until 2026-10-30); up to 3 trades open
+  (`max_open_positions`, was 1), ALWAYS all in the same direction: a signal the other way is skipped (owner's rule);
+  magic 202610, comment "RSI bot".
+- Stacking backtest (2026-10-30, 20/80, TP/SL 30): max 1 = +750 pips / 155 trades / dd 189; max 2 = +1456 / 271 / dd 311;
+  max 3 = +1499 / 355 / dd 412; max 5 = +1637 / 458 / dd 589, all positive in all 3 periods. Looser levels (25/75,
+  30/70) with stacking lose money: to get more trades, stack, don't loosen the levels.
+- Data for tuning: `trades` also keeps spread_pips, atr_pips, hour_utc, stack (1st/2nd/3rd of the stack),
+  mfe_pips / mae_pips (best / worst the trade got while open), minutes. Table `signals` keeps EVERY signal, taken or
+  skipped, with the reason (paused, other direction open, limit reached, Algo Trading off, rejected).
 - The bot never moves SL/TP after opening; manual drags and manual closes by the owner are kept and recorded.
   It refuses a real-money account unless `config.json` has `"allow_real_money": true`.
 
@@ -19,6 +27,9 @@ this Windows PC and the official `MetaTrader5` Python package (`.venv`). tastyfx
   `PARAR_BOT.bat` stops it. `STOP.txt` = no new trades. Not auto-started after reboot.
 - `bot.log` (all activity, "alive" summary every 10 min) and `trades.db` (table `trades`, close_reason) are the
   places to look when asked how it is doing.
+- `INICIAR_PANEL.bat` starts `panel.py` (+ `panel.html`): web panel on http://localhost:8080, bound to 127.0.0.1, buttons need
+  a per-run token. Shows account, open trade, RSI, history, log; pause/resume (STOP.txt), edit config.json, close the
+  bot's trade, start/stop/restart the bot.
 - Desktop folder "Forex Bot Trader" has shortcuts for the owner. MT5 must stay open with Algo Trading on.
 
 ## Backtests (`backtest/`)

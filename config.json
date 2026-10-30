@@ -7,8 +7,8 @@
     "take_profit_pips": 30,
     "stop_loss_pips": 30
   },
-  "lots": 0.01,
-  "max_open_positions": 1,
+  "lots": 0.5,
+  "max_open_positions": 3,
   "symbol": "EURUSD.FX",
   "timeframe": "M5",
   "magic": 202610,

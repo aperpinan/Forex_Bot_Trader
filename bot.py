@@ -2,6 +2,7 @@
 
 Every closed 5-minute candle: RSI on the closes. Mean reversion: RSI back up through `level` -> buy, back down through
 100 - `level` -> sell. The stop-loss and take-profit go WITH the order, so they live on tastyfx's server.
+Up to max_open_positions trades at once, always all in the same direction: a signal the other way is skipped.
 Only its own trades (magic number) are touched. It never moves a stop or target after opening: if you drag them on
 the chart or close the trade by hand, it keeps your change and writes it down.
 
@@ -62,12 +63,34 @@ def senal(prev, ahora, level):
     return 0
 
 
+def atr_pips(r, n=14):
+    """Average true range of the last n closed candles, in pips (how much the market is moving)."""
+    tr = [max(float(r[i]["high"]) - float(r[i]["low"]), abs(float(r[i]["high"]) - float(r[i - 1]["close"])),
+              abs(float(r[i]["low"]) - float(r[i - 1]["close"]))) for i in range(len(r) - n, len(r))]
+    return sum(tr) / n / PIP
+
+
+# Extra facts kept per trade so the settings can later be tuned on real results:
+# market state at entry, and how far the price went for (mfe) and against (mae) the trade while it was open.
+COLUMNAS_NUEVAS = {"spread_pips": "REAL", "atr_pips": "REAL", "hour_utc": "INTEGER", "stack": "INTEGER",
+                   "mfe_pips": "REAL", "mae_pips": "REAL", "minutes": "REAL"}
+
+
 def abrir_db():
     con = sqlite3.connect(DB)
     con.execute("""CREATE TABLE IF NOT EXISTS trades (
         ticket INTEGER PRIMARY KEY, symbol TEXT, side TEXT, lots REAL, open_time TEXT, open_price REAL,
         sl REAL, tp REAL, rsi_prev REAL, rsi_now REAL, candle TEXT, status TEXT,
         close_time TEXT, close_price REAL, close_reason TEXT, profit REAL, pips REAL, note TEXT)""")
+    hay = {x[1] for x in con.execute("PRAGMA table_info(trades)")}
+    for col, tipo in COLUMNAS_NUEVAS.items():
+        if col not in hay:
+            con.execute(f"ALTER TABLE trades ADD COLUMN {col} {tipo}")
+    # every signal, taken or not, with the reason: shows what was missed and why
+    con.execute("""CREATE TABLE IF NOT EXISTS signals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, time TEXT, candle TEXT, side TEXT, rsi_prev REAL, rsi_now REAL,
+        close REAL, spread_pips REAL, atr_pips REAL, hour_utc INTEGER, open_same INTEGER, open_other INTEGER,
+        action TEXT, ticket INTEGER)""")
     con.commit()
     return con
 
@@ -100,10 +123,16 @@ class Bot:
     def revisar_abiertas(self):
         """Trades in the db still 'open': note manual SL/TP moves, and record how each one closed."""
         vivas = {p.ticket: p for p in self.mias()}
-        for (ticket, side, sl, tp, open_price, note) in self.db.execute(
-                "SELECT ticket, side, sl, tp, open_price, note FROM trades WHERE status='open'").fetchall():
+        for (ticket, side, sl, tp, open_price, note, mfe, mae) in self.db.execute(
+                "SELECT ticket, side, sl, tp, open_price, note, mfe_pips, mae_pips FROM trades WHERE status='open'").fetchall():
             p = vivas.get(ticket)
             if p is not None:
+                ahora = (p.price_current - open_price) / PIP * (1 if side == "buy" else -1)
+                if mfe is None or ahora > mfe + 0.05 or mae is None or ahora < mae - 0.05:
+                    self.db.execute("UPDATE trades SET mfe_pips=?, mae_pips=? WHERE ticket=?",
+                                    (round(max(ahora, mfe if mfe is not None else ahora), 1),
+                                     round(min(ahora, mae if mae is not None else ahora), 1), ticket))
+                    self.db.commit()
                 if (abs(p.sl - sl) > 1e-6 or abs(p.tp - tp) > 1e-6):
                     nota = f"you moved SL {sl:.5f}->{p.sl:.5f}, TP {tp:.5f}->{p.tp:.5f}"
                     log(f"#{ticket} {nota} (the bot keeps your levels)")
@@ -128,10 +157,16 @@ class Bot:
                    self.mt5.DEAL_REASON_WEB: "closed by you (web)", self.mt5.DEAL_REASON_EXPERT: "closed by a program",
                    self.mt5.DEAL_REASON_SO: "stop-out (margin)"}
         razon = razones.get(d.reason, f"reason {d.reason}")
+        if d.reason == self.mt5.DEAL_REASON_EXPERT and "panel" in (d.comment or ""):
+            razon = "closed by you (panel)"
         profit = sum(x.profit + x.commission + x.swap + x.fee for x in deals)
         pips = (d.price - open_price) / PIP * (1 if side == "buy" else -1)
-        self.db.execute("UPDATE trades SET status='closed', close_time=?, close_price=?, close_reason=?, profit=?, pips=? "
-                        "WHERE ticket=?", (dt.datetime.fromtimestamp(d.time).isoformat(" "), d.price, razon, profit, pips, ticket))
+        entrada = next((x for x in deals if x.entry == self.mt5.DEAL_ENTRY_IN), None)
+        minutos = round((d.time - entrada.time) / 60, 1) if entrada else None
+        self.db.execute("UPDATE trades SET status='closed', close_time=?, close_price=?, close_reason=?, profit=?, pips=?, "
+                        "minutes=?, mfe_pips=MAX(COALESCE(mfe_pips, ?), ?), mae_pips=MIN(COALESCE(mae_pips, ?), ?) "
+                        "WHERE ticket=?", (dt.datetime.fromtimestamp(d.time).isoformat(" "), d.price, razon, profit, pips,
+                                           minutos, pips, pips, pips, pips, ticket))
         self.db.commit()
         log(f"#{ticket} CLOSED ({razon}) at {d.price:.5f}: {pips:+.1f} pips, {profit:+.2f} $")
 
@@ -158,22 +193,45 @@ class Bot:
         valores = rsi(closes, n)
         prev, ahora = valores[-2], valores[-1]
         s = senal(prev, ahora, float(self.st["rsi_level"]))
-        vela = dt.datetime.fromtimestamp(int(r[-1]["time"]), dt.timezone.utc).strftime("%m-%d %H:%M UTC")
+        t_vela = dt.datetime.fromtimestamp(int(r[-1]["time"]), dt.timezone.utc)
+        vela = t_vela.strftime("%m-%d %H:%M UTC")
         if not s:
             return
         lado = "BUY" if s > 0 else "SELL"
+        tick = self.mt5.symbol_info_tick(self.sym)
+        abiertas = self.mias()
+        tipo = self.mt5.POSITION_TYPE_BUY if s > 0 else self.mt5.POSITION_TYPE_SELL
+        mismo = sum(1 for p in abiertas if p.type == tipo)
+        hechos = {"candle": vela, "side": lado.lower(), "rsi_prev": prev, "rsi_now": ahora, "close": closes[-1],
+                  "spread_pips": round((tick.ask - tick.bid) / PIP, 1) if tick else None,
+                  "atr_pips": round(atr_pips(r), 1), "hour_utc": t_vela.hour,
+                  "open_same": mismo, "open_other": len(abiertas) - mismo}
+        texto = f"signal {lado} (RSI {prev:.1f} -> {ahora:.1f}, candle {vela})"
+        maximo = int(self.cfg.get("max_open_positions", 1))
         if os.path.exists(PARAR):
-            log(f"signal {lado} (RSI {prev:.1f} -> {ahora:.1f}, candle {vela}) skipped: STOP.txt is there")
+            motivo = "skipped: paused (STOP.txt)"
+        elif len(abiertas) - mismo:
+            motivo = f"skipped: {len(abiertas) - mismo} trade(s) open the other way (only one direction at a time)"
+        elif mismo >= maximo:
+            motivo = f"skipped: already {mismo} trade(s) open, the limit is {maximo}"
+        elif not self.mt5.terminal_info().trade_allowed:
+            motivo = "skipped: Algo Trading is OFF in MT5 (click the Algo Trading button)"
+        else:
+            ticket = self.abrir(s, prev, ahora, vela, hechos)
+            self.anotar_senal(hechos, f"opened #{ticket}" if ticket else "rejected by tastyfx", ticket)
             return
-        if len(self.mias()) >= int(self.cfg.get("max_open_positions", 1)):
-            log(f"signal {lado} (RSI {prev:.1f} -> {ahora:.1f}, candle {vela}) skipped: already has a trade open")
-            return
-        if not self.mt5.terminal_info().trade_allowed:
-            log(f"signal {lado} skipped: Algo Trading is OFF in MT5 (click the Algo Trading button)")
-            return
-        self.abrir(s, prev, ahora, vela)
+        log(f"{texto} {motivo}")
+        self.anotar_senal(hechos, motivo, None)
 
-    def abrir(self, s, prev, ahora, vela):
+    def anotar_senal(self, h, accion, ticket):
+        self.db.execute("INSERT INTO signals (time, candle, side, rsi_prev, rsi_now, close, spread_pips, atr_pips, hour_utc, "
+                        "open_same, open_other, action, ticket) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (dt.datetime.now().isoformat(" ", "seconds"), h["candle"], h["side"], h["rsi_prev"], h["rsi_now"],
+                         h["close"], h["spread_pips"], h["atr_pips"], h["hour_utc"], h["open_same"], h["open_other"],
+                         accion, ticket))
+        self.db.commit()
+
+    def abrir(self, s, prev, ahora, vela, hechos):
         mt5 = self.mt5
         tick = mt5.symbol_info_tick(self.sym)
         info = mt5.symbol_info(self.sym)
@@ -192,17 +250,20 @@ class Bot:
         if res is None or res.retcode != mt5.TRADE_RETCODE_DONE:
             log(f"{lado.upper()} REJECTED (RSI {prev:.1f} -> {ahora:.1f}): "
                 f"{res.retcode if res else mt5.last_error()} {res.comment if res else ''}")
-            return
+            return None
         pos = next((p for p in self.mias() if p.ticket == res.order), None)
         ticket = pos.ticket if pos else res.order
         sl, tp = (pos.sl, pos.tp) if pos else (sl, tp)
         self.db.execute("INSERT OR REPLACE INTO trades (ticket, symbol, side, lots, open_time, open_price, sl, tp, rsi_prev, "
-                        "rsi_now, candle, status) VALUES (?,?,?,?,?,?,?,?,?,?,?, 'open')",
+                        "rsi_now, candle, status, spread_pips, atr_pips, hour_utc, stack, mfe_pips, mae_pips) "
+                        "VALUES (?,?,?,?,?,?,?,?,?,?,?, 'open', ?,?,?,?, 0, 0)",
                         (ticket, self.sym, lado, res.volume, dt.datetime.now().isoformat(" ", "seconds"), res.price,
-                         sl, tp, prev, ahora, vela))
+                         sl, tp, prev, ahora, vela, hechos["spread_pips"], hechos["atr_pips"], hechos["hour_utc"],
+                         hechos["open_same"] + 1))
         self.db.commit()
         log(f"#{ticket} {lado.upper()} {res.volume} lots at {res.price:.5f} (RSI {prev:.1f} -> {ahora:.1f}, candle {vela}); "
-            f"SL {sl:.5f}, TP {tp:.5f}")
+            f"SL {sl:.5f}, TP {tp:.5f}; trade {hechos['open_same'] + 1} of max {self.cfg.get('max_open_positions', 1)}")
+        return ticket
 
     # ------------------------------------------------------------------ loop
     def resumen(self):
