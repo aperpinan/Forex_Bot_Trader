@@ -171,7 +171,8 @@ class Bot:
                                      round(min(ahora, mae if mae is not None else ahora), 1), ticket))
                     self.db.commit()
                 if (abs(p.sl - sl) > 1e-6 or abs(p.tp - tp) > 1e-6):
-                    nota = f"you moved SL {sl}->{p.sl}, TP {tp}->{p.tp}"
+                    d = self.mt5.symbol_info(sym).digits
+                    nota = f"you moved SL {sl:.{d}f}->{p.sl:.{d}f}, TP {tp:.{d}f}->{p.tp:.{d}f}"
                     log(f"#{ticket} {sym} {nota} (the bot keeps your levels)")
                     self.db.execute("UPDATE trades SET sl=?, tp=?, note=? WHERE ticket=?",
                                     (p.sl, p.tp, ((note + "; ") if note else "") + nota, ticket))

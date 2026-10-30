@@ -20,8 +20,9 @@
            padding:7px 14px; font:inherit; cursor:pointer; }
   button:hover { border-color:#4a5263; } button:disabled { opacity:.45; cursor:default; }
   button.primary { background:var(--blue); border-color:var(--blue); color:#fff; }
+  button.small { padding:3px 10px; font-size:12px; }
   button.danger { background:#3a1517; border-color:#6b2427; color:#ffb4b6; }
-  main { display:grid; grid-template-columns:repeat(auto-fit, minmax(330px, 1fr)); gap:16px; padding:18px 22px; }
+  main { display:grid; grid-auto-flow:dense; grid-template-columns:repeat(auto-fit, minmax(330px, 1fr)); gap:16px; padding:18px 22px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; }
   .wide { grid-column:1 / -1; }
   .card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--mute); margin:0 0 12px; }
@@ -67,24 +68,6 @@
   </section>
 
   <section class="card">
-    <h2>Open trades</h2>
-    <div class="scroll" id="open"><span class="mute">No open trades.</span></div>
-  </section>
-
-  <section class="card wide">
-    <h2>Pairs (RSI of the last closed 5-min candle)</h2>
-    <div class="scroll">
-      <table>
-        <thead><tr><th>Pair</th><th>Bid / ask</th><th>Spread</th><th>RSI</th><th>RSI last 6 h</th><th>Open</th>
-          <th>Lots</th><th>TP / SL pips</th><th>$ at SL</th></tr></thead>
-        <tbody id="pairs"></tbody>
-      </table>
-    </div>
-    <div class="note">Buy when RSI comes back up through the low (green) line, sell when it comes back down through the
-      high (red) line. Each pair: up to its max of trades, all in the same direction; pairs are independent.</div>
-  </section>
-
-  <section class="card">
     <h2>Results (closed trades)</h2>
     <div class="big" id="profit">–</div>
     <div class="row"><span>Trades</span><span id="nTrades">–</span></div>
@@ -112,7 +95,31 @@
       The backtest picked RSI 7, level 20, TP 30 / SL 30. Open trades keep their own stop / target.</div>
   </section>
 
-  <section class="card">
+  <section class="card wide">
+    <h2>Open trades <span class="mute" id="openSum"></span></h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Pair</th><th>Ticket</th><th>Side</th><th>Lots</th><th>Opened</th><th>Open</th><th>Now</th>
+          <th>Stop-loss</th><th>Take-profit</th><th>Pips</th><th>$</th><th></th></tr></thead>
+        <tbody id="open"><tr><td colspan="12" class="mute">No open trades.</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card wide">
+    <h2>Pairs (RSI of the last closed 5-min candle)</h2>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Pair</th><th>Bid / ask</th><th>Spread</th><th>RSI</th><th>RSI last 6 h</th><th>Open</th>
+          <th>Lots</th><th>TP / SL pips</th><th>$ at SL</th></tr></thead>
+        <tbody id="pairs"></tbody>
+      </table>
+    </div>
+    <div class="note">Buy when RSI comes back up through the low (green) line, sell when it comes back down through the
+      high (red) line. Each pair: up to its max of trades, all in the same direction; pairs are independent.</div>
+  </section>
+
+  <section class="card wide">
     <h2>Bot events</h2>
     <div class="scroll log" id="events"></div>
   </section>
@@ -193,15 +200,15 @@ function render(s) {
   $("login").textContent = `${a.login} · ${a.server}`;
   $("alive").textContent = s.last_alive || "–";
 
-  $("open").innerHTML = s.open.length ? s.open.map(p => `
-    <div class="big ${cls(p.profit)}">${esc(p.symbol.split(".")[0])} · ${signed(p.pips)} pips · ${money(p.profit)}</div>
-    <div class="row"><span>Ticket</span><span>#${p.ticket}</span></div>
-    <div class="row"><span>Side</span><span>${p.side.toUpperCase()} ${p.lots} lots</span></div>
-    <div class="row"><span>Opened</span><span>${p.open_time} at ${p.open_price.toFixed(p.digits)}</span></div>
-    <div class="row"><span>Now</span><span>${p.now.toFixed(p.digits)}</span></div>
-    <div class="row"><span>Stop-loss / take-profit</span><span>${p.sl.toFixed(p.digits)} / ${p.tp.toFixed(p.digits)}</span></div>
-    <button class="danger" style="margin-top:10px" onclick="closeTrade(${p.ticket})">Close this trade now</button>
-  `).join("<hr style='border-color:#2a2f3a'>") : `<span class="mute">No open trades. They open on the next RSI signals.</span>`;
+  $("open").innerHTML = s.open.length ? s.open.map(p => `<tr>
+    <td><b>${esc(p.symbol.split(".")[0])}</b></td><td>#${p.ticket}</td><td>${p.side.toUpperCase()}</td><td>${p.lots}</td>
+    <td>${esc(p.open_time)}</td><td>${p.open_price.toFixed(p.digits)}</td><td>${p.now.toFixed(p.digits)}</td>
+    <td>${p.sl.toFixed(p.digits)}</td><td>${p.tp.toFixed(p.digits)}</td>
+    <td class="${cls(p.pips)}">${signed(p.pips)}</td><td class="${cls(p.profit)}"><b>${money(p.profit)}</b></td>
+    <td><button class="danger small" onclick="closeTrade(${p.ticket})">Close</button></td></tr>`).join("")
+    : `<tr><td colspan="12" class="mute">No open trades. They open on the next RSI signals.</td></tr>`;
+  const tot = s.open.reduce((a, p) => a + p.profit, 0);
+  $("openSum").innerHTML = s.open.length ? `· ${s.open.length} open · <span class="${cls(tot)}">${money(tot)}</span>` : "";
 
   $("pairs").innerHTML = s.pairs.map((q, i) => `<tr>
     <td><b>${esc(q.name)}</b></td>
