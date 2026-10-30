@@ -28,6 +28,11 @@ this Windows PC and the official `MetaTrader5` Python package (`.venv`). tastyfx
 - Stacking backtest (2026-10-30, 20/80, TP/SL 30): max 1 = +750 pips / 155 trades / dd 189; max 2 = +1456 / 271 / dd 311;
   max 3 = +1499 / 355 / dd 412; max 5 = +1637 / 458 / dd 589, all positive in all 3 periods. Looser levels (25/75,
   30/70) with stacking lose money: to get more trades, stack, don't loosen the levels.
+- PER-PAIR SETTINGS (2026-10-30, `backtest/por_par.py`): RSI level 20/25/30 x TP x SL per pair; a setting qualifies only
+  if positive in all 3 periods AND its TP/SL neighbours are positive; ranked by worst period. Chosen (0.5 lots):
+  EUR RSI30 TP15/SL40, JPY RSI30 TP20/SL70, CHF RSI25 TP20/SL70, GBP RSI30 TP10/SL70 (only 1 robust setting: weak),
+  AUD RSI20 TP15/SL50. CAD, NZD, MXN have no robust setting: kept at defaults (MXN 300/300), data only.
+  Result: small wins, ~80-88% win rate, losses 3-7x a win. Spread is paid per trade in the test.
 - Exits: fixed TP / SL in pips attached to each order (not RSI, not a $ amount). `close_group_on_tp` (top level or per
   pair) closes a pair's other trades when one hits TP if together > 0. Built at the owner's request, but
   `backtest/grupo.py` showed it lowers profit (EUR 1320->893, JPY 1415->1202, GBP 432->-582, AUD ~same), so the owner

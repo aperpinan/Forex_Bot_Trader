@@ -92,7 +92,7 @@
     </div>
     <div class="note" id="riskNote"></div>
     <div class="note">These are the defaults for every pair. <span id="overrides"></span>
-      The backtest picked RSI 7, level 20, TP 30 / SL 30. Open trades keep their own stop / target.</div>
+      Pairs with their own tested settings ignore the defaults for those values (see the Pairs table). Open trades keep their own stop / target.</div>
   </section>
 
   <section class="card wide">
@@ -214,7 +214,7 @@ function render(s) {
     <td><b>${esc(q.name)}</b></td>
     <td>${q.bid == null ? "–" : q.bid.toFixed(q.digits) + " / " + q.ask.toFixed(q.digits)}</td>
     <td>${q.spread ?? "–"}</td>
-    <td class="${q.rsi != null && q.rsi < q.low ? "pos" : q.rsi != null && q.rsi > q.high ? "neg" : ""}">${q.rsi == null ? "–" : q.rsi.toFixed(1)}</td>
+    <td class="${q.rsi != null && q.rsi < q.low ? "pos" : q.rsi != null && q.rsi > q.high ? "neg" : ""}">${q.rsi == null ? "–" : q.rsi.toFixed(1)} <span class="mute">(${q.low}/${q.high})</span></td>
     <td style="width:160px"><svg id="spark${i}" viewBox="0 0 160 34" preserveAspectRatio="none" height="34"></svg></td>
     <td>${q.open ? `${q.open} ${q.direction}` : "–"} <span class="mute">/ ${q.max}</span></td>
     <td>${q.lots}</td><td>${q.tp} / ${q.sl}</td>
