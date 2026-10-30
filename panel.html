@@ -59,12 +59,15 @@
 </header>
 
 <main>
-  <section class="card">
-    <h2>Account</h2>
-    <div class="big" id="equity">–</div>
-    <div class="row"><span>Balance</span><span id="balance">–</span></div>
-    <div class="row"><span>Account</span><span id="login">–</span></div>
-    <div class="row"><span>Bot last seen</span><span id="alive">–</span></div>
+  <section class="card wide">
+    <h2>Open trades <span class="mute" id="openSum"></span></h2>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Pair</th><th>Ticket</th><th>Side</th><th>Lots</th><th>Opened</th><th>Open</th><th>Now</th>
+          <th>Stop-loss</th><th>Take-profit</th><th>Pips</th><th>$</th><th></th></tr></thead>
+        <tbody id="open"><tr><td colspan="12" class="mute">No open trades.</td></tr></tbody>
+      </table>
+    </div>
   </section>
 
   <section class="card">
@@ -74,6 +77,14 @@
     <div class="row"><span>Won</span><span id="won">–</span></div>
     <div class="row"><span>Pips</span><span id="pips">–</span></div>
     <svg id="curve" viewBox="0 0 300 90" preserveAspectRatio="none" height="90"></svg>
+  </section>
+
+  <section class="card">
+    <h2>Account</h2>
+    <div class="big" id="equity">–</div>
+    <div class="row"><span>Balance</span><span id="balance">–</span></div>
+    <div class="row"><span>Account</span><span id="login">–</span></div>
+    <div class="row"><span>Bot last seen</span><span id="alive">–</span></div>
   </section>
 
   <section class="card">
@@ -96,17 +107,6 @@
     <div class="note" id="ownNote"></div>
     <div class="note">Open trades keep the stop / target they were opened with. Tip: click a pair's name in the Pairs table
       to edit it.</div>
-  </section>
-
-  <section class="card wide">
-    <h2>Open trades <span class="mute" id="openSum"></span></h2>
-    <div class="scroll">
-      <table>
-        <thead><tr><th>Pair</th><th>Ticket</th><th>Side</th><th>Lots</th><th>Opened</th><th>Open</th><th>Now</th>
-          <th>Stop-loss</th><th>Take-profit</th><th>Pips</th><th>$</th><th></th></tr></thead>
-        <tbody id="open"><tr><td colspan="12" class="mute">No open trades.</td></tr></tbody>
-      </table>
-    </div>
   </section>
 
   <section class="card wide">
