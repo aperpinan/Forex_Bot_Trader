@@ -22,7 +22,8 @@ this Windows PC and the official `MetaTrader5` Python package (`.venv`). tastyfx
   data; MXN uses TP/SL 300 pips. EUR/USD and USD/JPY at 0.5 lots.
 - Added the same day: GBP/USD (30/30 = +694, periods 302/-31/341) at 0.5 lots; AUD/USD at 0.5 lots with TP 15 / SL 30
   (+1039, all 3 periods positive; 30/30 was only +17); USD/CAD and NZD/USD lose with every setting -> 0.01 lots, data only.
-  Rule used: passes the backtest -> 0.5 lots, fails -> 0.01 lots. tastyfx has NO gold, oil, indices or crypto
+  Rule used at first: passes the backtest -> 0.5 lots, fails -> 0.01 lots. Later on 2026-10-30 the owner asked for
+  ALL pairs at 0.5 lots (mixed sizes were confusing to read); losers in the backtest now trade full size on the demo. tastyfx has NO gold, oil, indices or crypto
   (65 symbols, all "Spot FX (USA)").
 - Stacking backtest (2026-10-30, 20/80, TP/SL 30): max 1 = +750 pips / 155 trades / dd 189; max 2 = +1456 / 271 / dd 311;
   max 3 = +1499 / 355 / dd 412; max 5 = +1637 / 458 / dd 589, all positive in all 3 periods. Looser levels (25/75,

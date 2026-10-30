@@ -12,12 +12,12 @@
   "pairs": {
     "EURUSD.FX": {},
     "USDJPY.FX": {},
-    "USDCHF.FX": {"lots": 0.01},
-    "USDMXN.FX": {"lots": 0.01, "take_profit_pips": 300, "stop_loss_pips": 300},
+    "USDCHF.FX": {},
+    "USDMXN.FX": {"take_profit_pips": 300, "stop_loss_pips": 300},
     "GBPUSD.FX": {},
     "AUDUSD.FX": {"take_profit_pips": 15},
-    "USDCAD.FX": {"lots": 0.01},
-    "NZDUSD.FX": {"lots": 0.01}
+    "USDCAD.FX": {},
+    "NZDUSD.FX": {}
   },
   "timeframe": "M5",
   "magic": 202610,
