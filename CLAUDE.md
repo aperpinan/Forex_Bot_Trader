@@ -20,6 +20,10 @@ this Windows PC and the official `MetaTrader5` Python package (`.venv`). tastyfx
   (19/36 TP/SL settings were); USD/CHF: no setting positive in all 3 periods (30/30 = -147); USD/MXN loses with every
   setting (spread ~50-90 pips, tastyfx min stop 150 pips). Owner chose: CHF and MXN trade at 0.01 lots only to collect
   data; MXN uses TP/SL 300 pips. EUR/USD and USD/JPY at 0.5 lots.
+- Added the same day: GBP/USD (30/30 = +694, periods 302/-31/341) at 0.5 lots; AUD/USD at 0.5 lots with TP 15 / SL 30
+  (+1039, all 3 periods positive; 30/30 was only +17); USD/CAD and NZD/USD lose with every setting -> 0.01 lots, data only.
+  Rule used: passes the backtest -> 0.5 lots, fails -> 0.01 lots. tastyfx has NO gold, oil, indices or crypto
+  (65 symbols, all "Spot FX (USA)").
 - Stacking backtest (2026-10-30, 20/80, TP/SL 30): max 1 = +750 pips / 155 trades / dd 189; max 2 = +1456 / 271 / dd 311;
   max 3 = +1499 / 355 / dd 412; max 5 = +1637 / 458 / dd 589, all positive in all 3 periods. Looser levels (25/75,
   30/70) with stacking lose money: to get more trades, stack, don't loosen the levels.
