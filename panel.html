@@ -74,7 +74,9 @@
     <h2>Results (closed trades)</h2>
     <div class="big" id="profit">–</div>
     <div class="row"><span>Trades</span><span id="nTrades">–</span></div>
-    <div class="row"><span>Won</span><span id="won">–</span></div>
+    <div class="row"><span>Won</span><span id="won" class="pos">–</span></div>
+    <div class="row"><span>Lost</span><span id="lost" class="neg">–</span></div>
+    <div class="row"><span>Win rate</span><span id="winRate">–</span></div>
     <div class="row"><span>Pips</span><span id="pips">–</span></div>
     <svg id="curve" viewBox="0 0 300 90" preserveAspectRatio="none" height="90"></svg>
   </section>
@@ -263,7 +265,9 @@ function render(s) {
   const st = s.stats;
   $("profit").textContent = money(st.profit); $("profit").className = "big " + cls(st.profit);
   $("nTrades").textContent = st.trades;
-  $("won").textContent = st.trades ? `${st.won} (${Math.round(st.won / st.trades * 100)}%)` : "–";
+  $("won").textContent = st.trades ? `${st.won} ${st.won === 1 ? "trade" : "trades"} · ${money(st.won_usd)}` : "–";
+  $("lost").textContent = st.trades ? `${st.lost} ${st.lost === 1 ? "trade" : "trades"} · ${money(st.lost_usd)}` : "–";
+  $("winRate").textContent = st.trades ? `${Math.round(st.won / st.trades * 100)}%` : "–";
   $("pips").textContent = signed(st.pips);
   const c = [0, ...s.curve];
   line($("curve"), c, 300, 90, Math.min(...c), Math.max(...c), "#2fbf71", [[0, "#2a2f3a"]]);
