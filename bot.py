@@ -4,6 +4,8 @@ Every closed 5-minute candle of each pair: RSI on the closes. Mean reversion: RS
 down through 100 - `level` -> sell. The stop-loss and take-profit go WITH the order, so they live on tastyfx's server.
 Each pair has up to max_open_positions trades at once, always all in the same direction: a signal the other way on
 that pair is skipped. Different pairs are independent (EUR/USD can be buying while USD/JPY is selling).
+When one trade of a pair hits its take-profit, the pair's other trades are closed with it if together they are
+above zero (config close_group_on_tp, off: it lowered profit in the backtest, backtest/grupo.py).
 Only its own trades (magic number) are touched. It never moves a stop or target after opening: if you drag them on
 the chart or close the trade by hand, it keeps your change and writes it down.
 
@@ -77,6 +79,7 @@ def ajustes_par(cfg, sym):
     a = dict(cfg["strategy"])
     a["lots"] = cfg["lots"]
     a["max_open_positions"] = cfg.get("max_open_positions", 1)
+    a["close_group_on_tp"] = cfg.get("close_group_on_tp", False)
     a.update(propio)
     return a
 
@@ -197,6 +200,8 @@ class Bot:
         razon = razones.get(d.reason, f"reason {d.reason}")
         if d.reason == self.mt5.DEAL_REASON_EXPERT and "panel" in (d.comment or ""):
             razon = "closed by you (panel)"
+        if d.reason == self.mt5.DEAL_REASON_EXPERT and "group" in (d.comment or ""):
+            razon = "closed with its group (" + d.comment.replace("group TP ", "TP of ") + ")"
         profit = sum(x.profit + x.commission + x.swap + x.fee for x in deals)        # account currency (USD)
         pips = (d.price - open_price) / pip * (1 if side == "buy" else -1)
         entrada = next((x for x in deals if x.entry == self.mt5.DEAL_ENTRY_IN), None)
@@ -207,6 +212,37 @@ class Bot:
                                            minutos, pips, pips, pips, pips, ticket))
         self.db.commit()
         log(f"#{ticket} {sym} CLOSED ({razon}) at {d.price}: {pips:+.1f} pips, {profit:+.2f} $")
+        if d.reason == self.mt5.DEAL_REASON_TP and self.aj.get(sym, self.cfg).get("close_group_on_tp", False):
+            self.cerrar_grupo(sym, ticket, profit)
+
+    def cerrar_grupo(self, sym, ticket, ganado):
+        """Owner's rule: when one trade of a pair hits its take-profit, close the pair's other open trades too,
+        but only if that profit plus their current result is above zero. Otherwise they keep their own SL / TP."""
+        resto = self.mias(sym)
+        if not resto:
+            return
+        flotante = sum(p.profit + p.swap for p in resto)
+        total = ganado + flotante
+        if total <= 0:
+            log(f"{sym}: #{ticket} hit its take-profit ({ganado:+.2f} $) but its {len(resto)} other trade(s) are at "
+                f"{flotante:+.2f} $: together {total:+.2f} $, not positive, so they stay open")
+            return
+        log(f"{sym}: #{ticket} hit its take-profit ({ganado:+.2f} $); closing its {len(resto)} other trade(s) "
+            f"({flotante:+.2f} $): together {total:+.2f} $")
+        mt5 = self.mt5
+        info = mt5.symbol_info(sym)
+        for p in resto:
+            tick = mt5.symbol_info_tick(sym)
+            compra = p.type == mt5.POSITION_TYPE_BUY
+            req = {"action": mt5.TRADE_ACTION_DEAL, "symbol": sym, "volume": p.volume, "position": p.ticket,
+                   "type": mt5.ORDER_TYPE_SELL if compra else mt5.ORDER_TYPE_BUY, "price": tick.bid if compra else tick.ask,
+                   "deviation": 10, "magic": self.magic, "comment": f"group TP #{ticket}"[:31],
+                   "type_time": mt5.ORDER_TIME_GTC,
+                   "type_filling": mt5.ORDER_FILLING_FOK if info.filling_mode & 1 else mt5.ORDER_FILLING_IOC}
+            res = mt5.order_send(req)
+            if res is None or res.retcode != mt5.TRADE_RETCODE_DONE:
+                log(f"#{p.ticket} {sym} group close REJECTED: {res.retcode if res else mt5.last_error()} "
+                    f"{res.comment if res else ''} (it keeps its own SL / TP)")
 
     # ------------------------------------------------------------------ signal and order
     def nueva_vela(self, sym):

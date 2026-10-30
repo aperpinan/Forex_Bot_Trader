@@ -27,6 +27,10 @@ this Windows PC and the official `MetaTrader5` Python package (`.venv`). tastyfx
 - Stacking backtest (2026-10-30, 20/80, TP/SL 30): max 1 = +750 pips / 155 trades / dd 189; max 2 = +1456 / 271 / dd 311;
   max 3 = +1499 / 355 / dd 412; max 5 = +1637 / 458 / dd 589, all positive in all 3 periods. Looser levels (25/75,
   30/70) with stacking lose money: to get more trades, stack, don't loosen the levels.
+- Exits: fixed TP / SL in pips attached to each order (not RSI, not a $ amount). `close_group_on_tp` (top level or per
+  pair) closes a pair's other trades when one hits TP if together > 0. Built at the owner's request, but
+  `backtest/grupo.py` showed it lowers profit (EUR 1320->893, JPY 1415->1202, GBP 432->-582, AUD ~same), so the owner
+  chose to keep it OFF (2026-10-30).
 - Data for tuning: `trades` also keeps spread_pips, atr_pips, hour_utc, stack (1st/2nd/3rd of the stack),
   mfe_pips / mae_pips (best / worst the trade got while open), minutes. Table `signals` keeps EVERY signal, taken or
   skipped, with the reason (paused, other direction open, limit reached, Algo Trading off, rejected).

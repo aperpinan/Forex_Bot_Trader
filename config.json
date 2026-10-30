@@ -8,6 +8,7 @@
   },
   "lots": 0.5,
   "max_open_positions": 3,
+  "close_group_on_tp": false,
   "pairs": {
     "EURUSD.FX": {},
     "USDJPY.FX": {},
