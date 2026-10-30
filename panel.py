@@ -47,8 +47,8 @@ AJUSTES = {
     "max_open_positions": (int, 1, 5),
     "rsi_period": (int, 2, 50),
     "rsi_level": (float, 5, 45),
-    "take_profit_pips": (float, 2, 500),
-    "stop_loss_pips": (float, 2, 500),
+    "take_profit_pips": (float, 2, 2000),
+    "stop_loss_pips": (float, 2, 2000),
 }
 DE_ESTRATEGIA = {"rsi_period", "rsi_level", "take_profit_pips", "stop_loss_pips"}
 
@@ -143,6 +143,7 @@ def estado():
             "open": len(suyas), "direction": ("buy" if suyas[0].type == 0 else "sell") if suyas else "",
             "lots": aj["lots"], "tp": aj["take_profit_pips"], "sl": aj["stop_loss_pips"],
             "max": aj["max_open_positions"],
+            "settings": {k: aj[k] for k in AJUSTES}, "own": sorted(k for k in (cfg.get("pairs") or {}).get(sym, {}) if k in AJUSTES),
             # dollars per pip for 1 lot, from tastyfx's own tick value (USD account)
             "usd_per_pip_lot": round(info.trade_tick_value * pip / info.trade_tick_size, 2) if info else None})
 
@@ -196,8 +197,19 @@ def estado():
 
 # ------------------------------------------------------------------ actions
 def guardar_ajustes(nuevos):
+    """Without "pair": change the defaults. With "pair": change that pair's own settings; a value equal to the
+    default is stored as "use the default". "reset": true drops all of the pair's own settings."""
     cfg = leer_cfg()
+    nuevos = dict(nuevos)
+    par = nuevos.pop("pair", None) or None
+    if par is not None and par not in (cfg.get("pairs") or {}):
+        raise ValueError(f"unknown pair {par}")
     cambios = []
+    if par and nuevos.pop("reset", False):
+        if cfg["pairs"][par]:
+            cambios.append(f"{par} back to the defaults (was {cfg['pairs'][par]})")
+            cfg["pairs"][par] = {}
+        nuevos = {}
     for k, v in nuevos.items():
         if k not in AJUSTES:
             raise ValueError(f"unknown setting {k}")
@@ -207,9 +219,20 @@ def guardar_ajustes(nuevos):
             raise ValueError(f"{k} must be between {lo} and {hi}")
         if k == "lots":
             v = round(v, 2)
+        if par:
+            propio = cfg["pairs"][par]
+            defecto = cfg["strategy"][k] if k in DE_ESTRATEGIA else cfg.get(k)
+            antes = propio.get(k, defecto)
+            if antes != v:
+                cambios.append(f"{par} {k} {antes} -> {v}")
+            if v == defecto:
+                propio.pop(k, None)
+            else:
+                propio[k] = v
+            continue
         destino = cfg["strategy"] if k in DE_ESTRATEGIA else cfg
         if destino.get(k) != v:
-            cambios.append(f"{k} {destino.get(k)} -> {v}")
+            cambios.append(f"default {k} {destino.get(k)} -> {v}")
             destino[k] = v
     if cambios:
         with open(CONFIG, "w", encoding="utf-8") as f:

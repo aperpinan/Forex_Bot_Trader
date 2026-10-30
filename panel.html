@@ -36,7 +36,7 @@
   .scroll { max-height:340px; overflow:auto; }
   form.settings { display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; }
   label { display:flex; flex-direction:column; gap:4px; color:var(--mute); font-size:12px; }
-  input { background:#0f1115; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:7px 9px; font:inherit; }
+  input, select { background:#0f1115; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:7px 9px; font:inherit; }
   .log { font:12px/1.5 Consolas, monospace; white-space:pre-wrap; color:#c9ceda; }
   .note { color:var(--mute); font-size:12px; margin-top:10px; }
   svg { width:100%; display:block; }
@@ -78,21 +78,24 @@
 
   <section class="card">
     <h2>Settings</h2>
+    <label style="margin-bottom:10px">Settings for<select id="selPair"><option value="">All pairs (defaults)</option></select></label>
     <form class="settings" id="fSettings">
-      <label>Lot size (EUR/USD: 0.01 = $0.10/pip)<input name="lots" type="number" step="0.01" min="0.01" max="10"></label>
+      <label>Lot size<input name="lots" type="number" step="0.01" min="0.01" max="10"></label>
       <label>Max open trades<input name="max_open_positions" type="number" step="1" min="1" max="5"></label>
       <label>RSI period<input name="rsi_period" type="number" step="1" min="2" max="50"></label>
       <label>RSI low level (high = 100 − low)<input name="rsi_level" type="number" step="1" min="5" max="45"></label>
-      <label>Take-profit (pips)<input name="take_profit_pips" type="number" step="1" min="2" max="500"></label>
-      <label>Stop-loss (pips)<input name="stop_loss_pips" type="number" step="1" min="2" max="500"></label>
+      <label>Take-profit (pips)<input name="take_profit_pips" type="number" step="1" min="2" max="2000"></label>
+      <label>Stop-loss (pips)<input name="stop_loss_pips" type="number" step="1" min="2" max="2000"></label>
     </form>
     <div style="display:flex; gap:10px; margin-top:12px">
       <button class="primary" id="bSave">Save and restart bot</button>
       <button id="bReset">Undo edits</button>
+      <button id="bDefaults" style="display:none">Use the defaults for this pair</button>
     </div>
     <div class="note" id="riskNote"></div>
-    <div class="note">These are the defaults for every pair. <span id="overrides"></span>
-      Pairs with their own tested settings ignore the defaults for those values (see the Pairs table). Open trades keep their own stop / target.</div>
+    <div class="note" id="ownNote"></div>
+    <div class="note">Open trades keep the stop / target they were opened with. Tip: click a pair's name in the Pairs table
+      to edit it.</div>
   </section>
 
   <section class="card wide">
@@ -175,14 +178,44 @@ function line(svg, vals, w, h, lo, hi, color, guides=[]) {
   svg.innerHTML = g + `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
 }
 
+let sel = "";                        // pair being edited in Settings ("" = the defaults)
+function cfgFor(s, sym) {
+  const q = sym && s.pairs.find(p => p.symbol === sym);
+  return q ? q.settings : s.config;
+}
+const NOMBRES = {lots:"lots", max_open_positions:"max trades", rsi_period:"RSI period", rsi_level:"RSI level",
+                 take_profit_pips:"take-profit", stop_loss_pips:"stop-loss"};
+function ownNote() {
+  if (!S) return;
+  const q = sel && S.pairs.find(p => p.symbol === sel);
+  $("bDefaults").style.display = q && q.own.length ? "" : "none";
+  if (!sel) {
+    const propios = S.pairs.filter(p => p.own.length).map(p => p.name);
+    $("ownNote").textContent = "Defaults: used by every pair for the values it doesn't set itself." +
+      (propios.length ? ` Pairs with their own values: ${propios.join(", ")}.` : "");
+  } else if (q) {
+    $("ownNote").textContent = q.own.length ? `${q.name} has its own ${q.own.map(k => NOMBRES[k] || k).join(", ")}; ` +
+      `the rest follow the defaults.` : `${q.name} uses the defaults for everything.`;
+  }
+}
+function elegir(sym) {
+  sel = sym; $("selPair").value = sym; editing = false;
+  if (S) fillSettings(cfgFor(S, sel));
+  ownNote();
+  $("fSettings").scrollIntoView({behavior:"smooth", block:"center"});
+}
+window.elegir = elegir;
+
 function fillSettings(c) {
   for (const el of $("fSettings").elements) if (el.name in c) el.value = c[el.name];
   editing = false; riskNote();
 }
 function riskNote() {
   const f = $("fSettings").elements, lots = +f.lots.value, sl = +f.stop_loss_pips.value, tp = +f.take_profit_pips.value;
-  $("riskNote").textContent = lots ? `EUR/USD at ${lots} lots: about $${(lots*10).toFixed(2)} per pip, ` +
-    `−$${(lots*10*sl).toFixed(0)} at the stop-loss, +$${(lots*10*tp).toFixed(0)} at the take-profit.` : "";
+  const q = S && S.pairs.find(p => p.symbol === (sel || "EURUSD.FX"));
+  const usd = q && q.usd_per_pip_lot ? q.usd_per_pip_lot : 10, nombre = q ? q.name : "EUR/USD";
+  $("riskNote").textContent = lots ? `${nombre} at ${lots} lots: about $${(lots*usd).toFixed(2)} per pip, ` +
+    `+$${(lots*usd*tp).toFixed(0)} at the take-profit, −$${(lots*usd*sl).toFixed(0)} at the stop-loss.` : "";
 }
 
 function render(s) {
@@ -211,7 +244,7 @@ function render(s) {
   $("openSum").innerHTML = s.open.length ? `· ${s.open.length} open · <span class="${cls(tot)}">${money(tot)}</span>` : "";
 
   $("pairs").innerHTML = s.pairs.map((q, i) => `<tr>
-    <td><b>${esc(q.name)}</b></td>
+    <td><a href="#" style="color:inherit" onclick="elegir('${q.symbol}'); return false"><b>${esc(q.name)}</b></a></td>
     <td>${q.bid == null ? "–" : q.bid.toFixed(q.digits) + " / " + q.ask.toFixed(q.digits)}</td>
     <td>${q.spread ?? "–"}</td>
     <td class="${q.rsi != null && q.rsi < q.low ? "pos" : q.rsi != null && q.rsi > q.high ? "neg" : ""}">${q.rsi == null ? "–" : q.rsi.toFixed(1)} <span class="mute">(${q.low}/${q.high})</span></td>
@@ -230,10 +263,14 @@ function render(s) {
   const c = [0, ...s.curve];
   line($("curve"), c, 300, 90, Math.min(...c), Math.max(...c), "#2fbf71", [[0, "#2a2f3a"]]);
 
-  if (!editing) fillSettings(s.config);
-  const ov = Object.entries(s.config.overrides || {});
-  $("overrides").textContent = ov.length ? "Own settings in config.json: " +
-    ov.map(([k, v]) => k.split(".")[0] + " " + Object.entries(v).map(([a, b]) => `${a} ${b}`).join(", ")).join("; ") + "." : "";
+  const selPair = $("selPair");
+  if (selPair.options.length !== s.pairs.length + 1) {
+    selPair.innerHTML = `<option value="">All pairs (defaults)</option>` +
+      s.pairs.map(q => `<option value="${q.symbol}">${esc(q.name)}</option>`).join("");
+    selPair.value = sel;
+  }
+  if (!editing) fillSettings(cfgFor(s, sel));
+  ownNote();
 
   $("hist").innerHTML = s.closed.length ? s.closed.map(t => `<tr>
     <td>#${t.ticket}</td><td>${esc((t.symbol || "").split(".")[0])}</td><td>${t.side}</td><td>${t.lots}</td><td>${esc(t.open_time)}</td>
@@ -271,11 +308,23 @@ window.closeTrade = t => confirm(`Close trade #${t} now at market price?`)
   && act(() => post("/api/close", {ticket:t}), `Trade #${t} closed`);
 
 $("fSettings").addEventListener("input", () => { editing = true; riskNote(); });
-$("bReset").onclick = () => S && fillSettings(S.config);
+$("selPair").onchange = e => elegir(e.target.value);
+$("bReset").onclick = () => S && fillSettings(cfgFor(S, sel));
+$("bDefaults").onclick = () => {
+  const q = S.pairs.find(p => p.symbol === sel);
+  if (!q || !confirm(`Make ${q.name} use the default settings for everything and restart the bot?`)) return;
+  act(async () => {
+    const j = await post("/api/settings", {pair: sel, reset: true});
+    editing = false;
+    if (S && S.bot_running && j.changes.length) await post("/api/bot", {action:"restart"});
+    return j;
+  }, j => j.changes.length ? "Saved: " + j.changes.join(", ") : "Nothing changed");
+};
 $("bSave").onclick = () => {
-  const body = {};
+  const body = sel ? {pair: sel} : {};
   for (const el of $("fSettings").elements) if (el.name) body[el.name] = +el.value;
-  if (!confirm("Save these settings and restart the bot so it uses them?")) return;
+  const quien = sel ? S.pairs.find(p => p.symbol === sel).name : "the defaults (all pairs without their own values)";
+  if (!confirm(`Save these settings for ${quien} and restart the bot so it uses them?`)) return;
   act(async () => {
     const j = await post("/api/settings", body);
     editing = false;
