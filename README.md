@@ -4,18 +4,22 @@ RSI bot for EUR/USD on 5-minute candles, traded on tastyfx (IG US) through MetaT
 **Demo account only until the forward test shows it works.**
 
 ## Strategy (current settings in `config.json`)
-- RSI(14) on 5-minute closes.
-- Mean reversion: buy when RSI comes back up through 30, sell when it comes back down through 70.
-- Each trade exits only at its take-profit (30 pips) or stop-loss (5 pips). One position at a time.
+- RSI(7) on 5-minute closes.
+- Mean reversion: buy when RSI comes back up through 20, sell when it comes back down through 80.
+- Each trade exits only at its take-profit (30 pips) or stop-loss (30 pips). One position at a time.
 - Size: `lots` in standard lots (1 lot = 100,000 EUR; 0.01 = 1,000 = about $0.10 per pip).
 
 ## Backtest (`backtest/`)
 - `bajar_eurusd.py`: downloads the last 60 days of EUR/USD 5-minute bars into `data/`.
 - `eurusd_rsi.py`: tests 257 RSI / take-profit / stop-loss combinations (first half picks, second half checks).
 - `lotes.py`: shows the results in dollars for micro, mini and standard lots.
+- `bajar_tastyfx.py`: downloads 6 months of EUR/USD 5-minute candles from the tastyfx MT5 terminal, with real spreads.
+- `eurusd_rsi_tastyfx.py`: the same test on that data, paying each candle's spread, split into 3 periods of 2 months.
 
-Result on Aug 6 - Oct 29, 2026, with 1 pip of spread per trade: the settings above made +249 pips
-(221 trades, 20% wins, worst drawdown 144 pips). Most other settings lost money.
+Result on tastyfx data, May 3 - Oct 30, 2026: the settings above made +750 pips (155 trades, 60% wins,
+worst drawdown 189 pips) and were positive in all three periods (+322 / +159 / +132).
+Only 15 of 300 settings were positive in all three. The first pick from Yahoo's 60 days (RSI14, TP 30 / SL 5)
+lost 46 pips over the 6 months.
 
 ## tastyfx connection: MetaTrader 5
 tastyfx's old WebSocket API is gone (its servers no longer resolve and its help page is 404, checked 2026-10-29).
