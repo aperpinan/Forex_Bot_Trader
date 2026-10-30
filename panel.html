@@ -77,7 +77,10 @@
     <div class="row"><span>Won</span><span id="won" class="pos">–</span></div>
     <div class="row"><span>Lost</span><span id="lost" class="neg">–</span></div>
     <div class="row"><span>Win rate</span><span id="winRate">–</span></div>
-    <div class="row"><span>Pips</span><span id="pips">–</span></div>
+    <table style="margin:8px 0 6px; font-size:13px">
+      <thead><tr><th>Pair</th><th>Won / lost</th><th>Pips</th><th>$</th></tr></thead>
+      <tbody id="byPair"></tbody>
+    </table>
     <svg id="curve" viewBox="0 0 300 90" preserveAspectRatio="none" height="90"></svg>
   </section>
 
@@ -268,7 +271,10 @@ function render(s) {
   $("won").textContent = st.trades ? `${st.won} ${st.won === 1 ? "trade" : "trades"} · ${money(st.won_usd)}` : "–";
   $("lost").textContent = st.trades ? `${st.lost} ${st.lost === 1 ? "trade" : "trades"} · ${money(st.lost_usd)}` : "–";
   $("winRate").textContent = st.trades ? `${Math.round(st.won / st.trades * 100)}%` : "–";
-  $("pips").textContent = signed(st.pips);
+  $("byPair").innerHTML = st.by_pair.length ? st.by_pair.map(b => `<tr><td><b>${esc(b.name)}</b></td>
+    <td><span class="pos">${b.won}</span> / <span class="neg">${b.trades - b.won}</span></td>
+    <td class="${cls(b.pips)}">${signed(b.pips)}</td><td class="${cls(b.profit)}">${money(b.profit)}</td></tr>`).join("")
+    : `<tr><td colspan="4" class="mute">No closed trades yet.</td></tr>`;
   const c = [0, ...s.curve];
   line($("curve"), c, 300, 90, Math.min(...c), Math.max(...c), "#2fbf71", [[0, "#2a2f3a"]]);
 

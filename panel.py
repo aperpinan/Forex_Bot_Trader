@@ -189,7 +189,12 @@ def estado():
         "closed": cerradas[::-1][:100],
         "stats": {"trades": len(cerradas), "won": ganadas, "lost": len(cerradas) - ganadas,
                   "won_usd": round(sum(x["profit"] for x in cerradas if (x["profit"] or 0) > 0), 2),
-                  "lost_usd": round(sum(x["profit"] or 0 for x in cerradas if (x["profit"] or 0) <= 0), 2), "pips": round(sum(x["pips"] or 0 for x in cerradas), 1),
+                  "lost_usd": round(sum(x["profit"] or 0 for x in cerradas if (x["profit"] or 0) <= 0), 2),
+                  # pips only add up within one pair (a USD/MXN pip is worth far less than a EUR/USD pip)
+                  "by_pair": [{"name": q["name"], "trades": len(t), "won": sum(1 for x in t if (x["profit"] or 0) > 0),
+                               "pips": round(sum(x["pips"] or 0 for x in t), 1),
+                               "profit": round(sum(x["profit"] or 0 for x in t), 2)}
+                              for q in lista for t in [[x for x in cerradas if x["symbol"] == q["symbol"]]] if t],
                   "profit": round(acum, 2)},
         "curve": curva,
         "events": [l for l in lineas if "alive:" not in l][-25:][::-1],
